@@ -6,19 +6,12 @@
 // [3] GWER/FDR - optional. default = GWER
 // [4] CI 1.5-LOD - optional. default = chromosomal
 
-
 riails = params.in.replace(".tsv","")
 params.cross = 'marker'
 params.thresh = 'GWER'
 params.ci = "chromosomal"
-params.out = riails + "mapping"
+params.out = riails + "-mapping"
 params.nperm = 1000
-
-// for use on personal computer
-// params.out = "/Users/katieevans/Dropbox/AndersenLab/QTLpaper/scripts/GWER_mapping/"
-// params.in = "/Users/katieevans/Dropbox/AndersenLab/QTLpaper/scripts/GWER_mapping/"
-// riails = "/Users/katieevans/Dropbox/AndersenLab/RCode/Linkage\\ mapping/RIAILsMappings/allRIAILsregressed.Rda"
-
 
 // split phenotypes into separate files
 process split_pheno {
@@ -32,12 +25,14 @@ process split_pheno {
     #!/usr/bin/env Rscript --vanilla
     library(dplyr)
     library(readr)
-    df <- readr::read_tsv("${infile}")
+    df <- readr::read_tsv("${infile}") %>%
+    	dplyr::mutate(condtrt = paste0(condition, ".", trait))
 
     # split phenotype by trait
-    for(i in unique(df["trait"])[[1]]) {
+    for(i in unique(df["condtrt"])[[1]]) {
     	traitdf <- df %>%
-        	dplyr::filter(trait == i)
+        	dplyr::filter(condtrt == i) %>%
+        	dplyr::select(-condtrt)
     	readr::write_tsv(traitdf, path = paste0(i, "-phenotype.tsv"))
 	}
 
@@ -51,7 +46,7 @@ phenotypes_split = phenotypes.flatten()
 process mapping {
 	cpus 4
 	tag { input_tsv }
-	publishDir "analysis-${riails}/mappings", mode: 'copy'
+	publishDir "analysis-${params.out}/mappings", mode: 'copy'
 
 	input:
 		file input_tsv from phenotypes_split
@@ -76,9 +71,11 @@ process mapping {
 	if("${params.cross}" == "marker") {
 		data("N2xCB4856cross")
 		cross <- N2xCB4856cross
+		markers <- "N2xCB4856"
 	} else {
 		load("${params.cross}")
 		cross <- get(grep("cross", ls(), value = T))
+		markers <- "full"
 	}
 
 	# make trait cross object
@@ -86,7 +83,7 @@ process mapping {
 
 	# perform the mapping
 	threshold <- "${params.thresh}"
-	map <- linkagemapping::fsearch(drugcross, permutations = $params.nperm, thresh = threshold, markerset="N2xCB4856")
+	map <- linkagemapping::fsearch(drugcross, permutations = $params.nperm, thresh = threshold, markerset = markers)
 
 	# annotate map
 	cilod <- "${params.ci}"
@@ -102,7 +99,7 @@ process mapping {
 // combine the annotated mappings
 process concatenate_mappings {
 
-    publishDir "analysis-${riails}/", mode: 'copy'
+    publishDir "analysis-${params.out}/", mode: 'copy'
     
     input:
         val(input_mapping) from annotated_maps.toSortedList()
@@ -111,7 +108,40 @@ process concatenate_mappings {
         file("${params.out}.tsv") into output
 
     """
-	cat ${input_mapping.join(" ")} > ${params.out}.tsv
+    # use this to only print the header of the first line
+	awk 'FNR>1 || NR==1' ${input_mapping.join(" ")} > ${params.out}.tsv
     """
+
+}
+
+// convert to Rda format
+process convertR {
+
+	publishDir "analysis-${params.out}/", mode: 'copy'
+
+	input:
+		file("mappingfile") from output
+
+	output:
+		file("${params.out}.Rda")
+
+	"""
+	#!/usr/bin/env Rscript --vanilla
+	library(readr)
+
+	# load file
+	df <- readr::read_tsv("$mappingfile")
+
+	# convert to numerics
+	df["var_exp"] <- as.numeric(df["var_exp"][[1]])
+	df["eff_size"] <- as.numeric(df["eff_size"][[1]])
+	df["ci_l_pos"] <- as.numeric(df["ci_l_pos"][[1]])
+	df["ci_r_pos"] <- as.numeric(df["ci_r_pos"][[1]])
+
+	# save dataframe as Rda
+	${params.out} <- df
+	save(${params.out}, file = paste0("${params.out}", ".Rda"))
+
+	"""
 
 }
