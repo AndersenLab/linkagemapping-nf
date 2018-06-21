@@ -12,6 +12,7 @@ params.cross = 'marker'
 params.thresh = 'GWER'
 params.ci = "chromosomal"
 params.out = riails + "mapping"
+params.nperm = 1000
 
 // for use on personal computer
 // params.out = "/Users/katieevans/Dropbox/AndersenLab/QTLpaper/scripts/GWER_mapping/"
@@ -62,7 +63,8 @@ process mapping {
 
 	#!/usr/bin/env Rscript --vanilla
 	library(linkagemapping)
-	library(tidyverse)
+	library(dplyr)
+	library(readr)
 
 	# load phenotype data
 	df <- readr::read_tsv("${input_tsv}")
@@ -84,7 +86,7 @@ process mapping {
 
 	# perform the mapping
 	threshold <- "${params.thresh}"
-	map <- linkagemapping::fsearch(drugcross, permutations = 10, thresh = threshold, markerset="N2xCB4856")
+	map <- linkagemapping::fsearch(drugcross, permutations = $params.nperm, thresh = threshold, markerset="N2xCB4856")
 
 	# annotate map
 	cilod <- "${params.ci}"
