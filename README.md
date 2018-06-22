@@ -30,7 +30,7 @@ For the Andersen Lab, the input file is generally going to be the output from th
 | param | default | optional | explanation |
 | --- | --- | --- | --- |
 | `--cross` | 'marker' | 'file_to_cross' | default 'marker' uses cross object generated from genotypes of 1400 markers. Otherwise, include full path to whole genome cross object |
-| `--thresh` | 'GWER' | 'FDR' | defines method for setting significance threshold in linkage mapping. Options are GWER (default) and FDR. |
+| `--thresh` | 'GWER' | 'FDR' | defines method for setting significance threshold in linkage mapping. Options are GWER (default) and FDR. GWER selects the threshold for significant QTL for each trait independently. FDR selects the threshold for significant QTL for all traits/drugs at the same time. |
 | `--ci` | 'chromosomal' | 'proximal' | method for defining 1.5-LOD drop confidence intervals for QTL. Default is 'chromosomal' meaning the 1.5-LOD drop applies to the entire chromosome. The other option is 'proximal' which means the confidence interval will span 1.5-LOD units directly to the left/right of the peak marker. |
 | `--out` | <name_of_input-mapping.tsv> | <output_file.tsv> | define name of output .tsv file |
 
