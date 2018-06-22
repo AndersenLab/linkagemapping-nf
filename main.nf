@@ -109,7 +109,8 @@ process mapping {
 	if(nrow(peaks) > 0) {
 		annotatedmap <- linkagemapping::annotate_lods(map, drugcross, cutoff = cilod)
 	} else {
-		annotatedmap <- map
+		annotatedmap <- map %>%
+			dplyr::mutate(var_exp = NA, eff_size = NA, ci_l_marker = NA, ci_l_pos = NA, ci_r_marker = NA, ci_r_pos = NA)
 	}
 	
 
