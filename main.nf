@@ -28,13 +28,22 @@ process split_pheno {
     df <- readr::read_tsv("${infile}") %>%
     	dplyr::mutate(condtrt = paste0(condition, ".", trait))
 
-    # split phenotype by trait
-    for(i in unique(df["condtrt"])[[1]]) {
-    	traitdf <- df %>%
-        	dplyr::filter(condtrt == i) %>%
-        	dplyr::select(-condtrt)
-    	readr::write_tsv(traitdf, path = paste0(i, "-phenotype.tsv"))
-	}
+    # if theshold is FDR, do not split by trait
+    if("${params.thresh}" == "FDR") {
+    	readr::write_tsv(df, paste0("${riails}", "-phenotype.tsv"))
+    } else if("${params.thresh}" == "GWER") {
+    	# split phenotype by trait
+	    for(i in unique(df["condtrt"])[[1]]) {
+	    	traitdf <- df %>%
+	        	dplyr::filter(condtrt == i) %>%
+	        	dplyr::select(-condtrt)
+	    	readr::write_tsv(traitdf, path = paste0(i, "-phenotype.tsv"))
+		}
+    } else {
+    	stop("Error: Please select 'GWER' or 'FDR' threshold")
+    }
+
+    
 
     """
 }
@@ -65,7 +74,13 @@ process mapping {
 	df <- readr::read_tsv("${input_tsv}")
 
 	# get trait name
-	phenotype_name <- unique(df["trait"])[[1]]
+	threshold <- "${params.thresh}"
+	if(threshold == "FDR") {
+		phenotype_name <- "${riails}"
+	} else {
+		phenotype_name <- unique(df["trait"])[[1]]
+	}
+	
 
 	# load cross object
 	if("${params.cross}" == "marker") {
@@ -82,7 +97,7 @@ process mapping {
 	drugcross <- linkagemapping::mergepheno(cross, df, set = 2)
 
 	# perform the mapping
-	threshold <- "${params.thresh}"
+
 	map <- linkagemapping::fsearch(drugcross, permutations = $params.nperm, thresh = threshold, markerset = markers)
 
 	# annotate map
