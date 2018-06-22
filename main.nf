@@ -102,7 +102,16 @@ process mapping {
 
 	# annotate map
 	cilod <- "${params.ci}"
-	annotatedmap <- linkagemapping::annotate_lods(map, drugcross, cutoff = cilod)
+
+	# check to make sure there is something to annotate
+	peaks <- map %>%
+		na.omit()
+	if(nrow(peaks) > 0) {
+		annotatedmap <- linkagemapping::annotate_lods(map, drugcross, cutoff = cilod)
+	} else {
+		annotatedmap <- map
+	}
+	
 
 	# save annotated map
 	readr::write_tsv(annotatedmap, paste0(phenotype_name, "-", threshold, ".", cilod, ".annotated.tsv"))
