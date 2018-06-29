@@ -35,8 +35,7 @@ process split_pheno {
     	# split phenotype by trait
 	    for(i in unique(df["condtrt"])[[1]]) {
 	    	traitdf <- df %>%
-	        	dplyr::filter(condtrt == i) %>%
-	        	dplyr::select(-condtrt)
+	        	dplyr::filter(condtrt == i)
 	    	readr::write_tsv(traitdf, path = paste0(i, "-phenotype.tsv"))
 		}
     } else {
@@ -61,6 +60,7 @@ process mapping {
 		file input_tsv from phenotypes_split
 
 	output:
+		file("*.unannotated.tsv") into unannotated_maps
 		file("*.annotated.tsv") into annotated_maps
 
 	"""
@@ -78,7 +78,7 @@ process mapping {
 	if(threshold == "FDR") {
 		phenotype_name <- "${riails}"
 	} else {
-		phenotype_name <- unique(df["trait"])[[1]]
+		phenotype_name <- unique(df["condtrt"])[[1]]
 	}
 	
 
