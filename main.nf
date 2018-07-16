@@ -100,10 +100,11 @@ process mapping {
 
 	map <- linkagemapping::fsearch(drugcross, permutations = $params.nperm, thresh = threshold, markerset = markers)
 
-	# save annotated map
+	# save unannotated map
 	readr::write_tsv(map, paste0(phenotype_name, "-", threshold, ".unannotated.tsv"))
 
 	# annotate map
+	cilod <- "${params.ci}"
 
 	# check to make sure there is something to annotate
 	peaks <- map %>%
