@@ -5,6 +5,7 @@
 // [2] cross object - optional. default = marker (because it can be loaded with linkagemapping)
 // [3] GWER/FDR - optional. default = GWER
 // [4] CI 1.5-LOD - optional. default = chromosomal
+// [5] condtrt flag - do I make a new column for condition.trait?
 
 riails = params.in.replace(".tsv","")
 params.cross = 'marker'
@@ -12,6 +13,7 @@ params.thresh = 'GWER'
 params.ci = "chromosomal"
 params.out = riails + "-mapping"
 params.nperm = 1000
+params.condtrt = FALSE
 
 // split phenotypes into separate files
 process split_pheno {
@@ -25,8 +27,14 @@ process split_pheno {
     #!/usr/bin/env Rscript --vanilla
     library(dplyr)
     library(readr)
-    df <- readr::read_tsv("${infile}") %>%
-    	dplyr::mutate(condtrt = paste0(condition, ".", trait))
+
+    if(${params.contrt} == TRUE) {
+    	df <- readr::read_tsv("${infile}") %>%
+    		dplyr::mutate(condtrt = paste0(condition, ".", trait))
+    } else {
+    	df <- readr::read_tsv("${infile}") %>%
+    		dplyr::mutate(condtrt = trait)
+    }
 
     # if theshold is FDR, do not split by trait
     if("${params.thresh}" == "FDR") {
