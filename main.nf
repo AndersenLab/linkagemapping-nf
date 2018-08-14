@@ -28,7 +28,7 @@ process split_pheno {
     library(dplyr)
     library(readr)
 
-    if(${params.contrt} == TRUE) {
+    if(${params.contrt} == FALSE) {
     	df <- readr::read_tsv("${infile}") %>%
     		dplyr::mutate(condtrt = paste0(condition, ".", trait))
     } else {
