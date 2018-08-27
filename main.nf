@@ -13,12 +13,106 @@ params.thresh = 'GWER'
 params.ci = "chromosomal"
 params.out = riails + "-mapping"
 params.nperm = 1000
-params.condtrt = FALSE
+
+// perform principal component analysis on 24 main traits (exclude iqr, f., fluorescence)
+process perform_pca {
+	input:
+		file 'infile' from Channel.fromPath(params.in)
+
+	output:
+		file 'allRIAILsPCregressed.tsv' into riail_pheno
+
+	"""
+	#!/usr/bin/env Rscript --vanilla
+	library(tidyverse)
+	library(linkagemapping)
+
+	# read in phenotypes and cross object
+	# assign("cross", get(linkagemapping::load_cross_obj("${params.cross}")))
+
+	if("${params.cross}" == "marker") {
+		data("N2xCB4856cross")
+		cross <- N2xCB4856cross
+		markers <- "N2xCB4856"
+	} else {
+		load("${params.cross}")
+		cross <- get(grep("cross", ls(), value = T))
+		markers <- "full"
+	}
+
+	allRIAILregressed <- readr::read_tsv("${infile}")
+
+	# keep only the strains in set2
+	phenocross <- linkagemapping::mergepheno(cross, allRIAILregressed, set = 2)
+	drugregressed <- phenocross\$pheno %>%
+	    dplyr::filter(set == 2)
+
+	allRIAILregressed <- allRIAILregressed %>%
+	    dplyr::filter(strain %in% drugregressed\$strain) %>%
+    	dplyr::select(strain, condition, trait, phenotype)
+
+	#for each drug, find the PCs and summarize them
+
+	allPCs <- NULL
+	for(d in unique(allRIAILregressed\$condition)){
+	    
+	    pc_traits <- dplyr::filter(allRIAILregressed, condition == d)%>%
+	        dplyr::mutate(drugtrait = paste0(condition, ".", trait)) %>%
+	        dplyr::select(drugtrait, strain, phenotype)%>%
+	        dplyr::ungroup()%>%
+	        dplyr::filter(!strain %in% c("N2","CB4856"), !grepl("red|green|yellow|f.ad|f.L1|f.L2L3|f.L4|iqr", drugtrait)) %>%
+	        unique() %>%
+	        tidyr::spread(drugtrait, phenotype) %>%
+	        na.omit()
+	    
+	    row.names(pc_traits) <- pc_traits\$strain
+	    
+	    pc_traits <- pc_traits %>%
+	        dplyr::select(-strain)
+	    
+	    scales_pc_traits <- as.data.frame(scale(pc_traits))
+	    
+	    pca_obj <- princomp(scales_pc_traits)
+	    
+	    # figure out how many PCs to keep that will explain > 90% of the variance
+	    # pull the total variance explained with each PC and call it "drug.cumsum"
+	    cumsums <- t(as.matrix(cumsum(pca_obj\$sdev^2/sum(pca_obj\$sdev^2))))
+	    rownames(cumsums) <- paste(d, "cumsum", sep = ".")
+	    cumsums <- as.data.frame(cumsums) %>%
+	        tidyr::gather(comp, var) %>%
+	        dplyr::filter(var > 0.9) 
+	    
+	    # the first component in the dataframe is the first one that goes over 90%, so we want to keep it and everything else below it
+	    keep <- as.numeric(stringr::str_split_fixed(cumsums\$comp[1], "Comp.", 2)[,2])
+	    
+	    # keep only those PCs phenotypes for all RIAIL strains
+	    colnames(pca_obj\$scores) <- paste(d, colnames(pca_obj\$scores), sep = "_")
+	    
+	    pcaoutput <- data.frame(pca_obj\$scores[,1:keep]) %>%
+	        dplyr::mutate(strain = rownames(.)) %>%
+	        tidyr::gather(trait, phenotype, -strain)
+	    
+	    allPCs <- rbind(allPCs, pcaoutput)
+	}
+
+	# tidy
+	allPCs\$trait <- gsub("_Comp.", "_PC", allPCs\$trait)
+	allRIAILsPC <- allPCs %>%
+	    tidyr::separate(trait, c("condition", "trait"), sep = "_")
+
+	# combine allRIAILsregressed and allRIAILsPC
+	combined_phenotype <- rbind(allRIAILregressed, allRIAILsPC) %>%
+		dplyr::mutate(condtrt = paste0(condition, ".", trait))
+
+	readr::write_tsv(combined_phenotype, "allRIAILsPCregressed.tsv")
+
+	"""
+}
 
 // split phenotypes into separate files
 process split_pheno {
 	input:
-		file 'infile' from Channel.fromPath(params.in)
+		file 'infile' from riail_pheno
 
 	output:
         file '*.tsv' into phenotypes
@@ -28,13 +122,7 @@ process split_pheno {
     library(dplyr)
     library(readr)
 
-    if(${params.contrt} == FALSE) {
-    	df <- readr::read_tsv("${infile}") %>%
-    		dplyr::mutate(condtrt = paste0(condition, ".", trait))
-    } else {
-    	df <- readr::read_tsv("${infile}") %>%
-    		dplyr::mutate(condtrt = trait)
-    }
+    df <- readr::read_tsv("${infile}")
 
     # if theshold is FDR, do not split by trait
     if("${params.thresh}" == "FDR") {
@@ -49,8 +137,6 @@ process split_pheno {
     } else {
     	stop("Error: Please select 'GWER' or 'FDR' threshold")
     }
-
-    
 
     """
 }
@@ -91,6 +177,8 @@ process mapping {
 	
 
 	# load cross object
+	# assign('cross', get(linkagemapping::load_cross_obj("${params.cross}")))
+
 	if("${params.cross}" == "marker") {
 		data("N2xCB4856cross")
 		cross <- N2xCB4856cross
@@ -104,8 +192,14 @@ process mapping {
 	# make trait cross object
 	drugcross <- linkagemapping::mergepheno(cross, df, set = 2)
 
-	# perform the mapping
+	# choose the markerset
+	#if(deparse(substitute(${params.cross})) == "N2xCB4856cross") {
+	#	markers <- "N2xCB4856"
+	#} else if(deparse(substitute(${params.cross})) == "N2xCB4856cross_full2") {
+	#	markers <- 'full'
+	#}
 
+	# perform the mapping
 	map <- linkagemapping::fsearch(drugcross, permutations = $params.nperm, thresh = threshold, markerset = markers)
 
 	# save unannotated map
