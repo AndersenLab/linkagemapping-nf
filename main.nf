@@ -16,6 +16,7 @@ params.nperm = 1000
 
 // perform principal component analysis on 24 main traits (exclude iqr, f., fluorescence)
 process perform_pca {
+	publishDir "analysis-${params.out}/", mode: 'copy'
 	input:
 		file 'infile' from Channel.fromPath(params.in)
 
@@ -225,53 +226,120 @@ process mapping {
 	"""
 }
 
-
-// combine the annotated mappings
-process concatenate_mappings {
-
-    publishDir "analysis-${params.out}/", mode: 'copy'
-    
-    input:
-        val(input_mapping) from annotated_maps.toSortedList()
-
-    output:
-        file("${params.out}.tsv") into output
-
-    """
-    # use this to only print the header of the first line
-	awk 'FNR>1 || NR==1' ${input_mapping.join(" ")} > ${params.out}.tsv
-    """
-
-}
-
-// convert to Rda format
-process convertR {
-
+// combine the annotated maps for each drug and output as r dataframe
+process concatenate_drug {
 	publishDir "analysis-${params.out}/", mode: 'copy'
 
 	input:
-		file("mappingfile") from output
+		val(input_mapping) from annotated_maps.toSortedList()
 
 	output:
-		file("${params.out}.Rda")
+		file("*.Rda")
 
 	"""
 	#!/usr/bin/env Rscript --vanilla
-	library(readr)
+	library(tidyverse)
 
-	# load file
-	df <- readr::read_tsv("$mappingfile")
+	# get the drugs
+	# pheno <- readr::read_tsv(${params.in})
 
-	# convert to numerics
-	df["var_exp"] <- as.numeric(df["var_exp"][[1]])
-	df["eff_size"] <- as.numeric(df["eff_size"][[1]])
-	df["ci_l_pos"] <- as.numeric(df["ci_l_pos"][[1]])
-	df["ci_r_pos"] <- as.numeric(df["ci_r_pos"][[1]])
+	drugs <- c('carmustine', 'chlorothanil', 'daunorubicin', 'docetaxel', 'etoposide', 'fluoxetine.125', 'fluoxetine.250', 'irinotecan', 
+           'methotrexate.625', 'methotrexate.3125', 'thiabendazole.625', 'thiabendazole.125', 'tunicamycin', 'abamectin', 'albendazole', 
+           'amsacrine', 'bortezomib', 'chlorpyrifos', 'dactinomycin', 'fenbendazole.15', 'fenbendazole.30', 'mebendazole', 'topotecan', 
+           'mianserin', 'monepantel', 'arsenicdibasic', 'arsenictrioxide', 'bleomycin', 'cadmium', 'copper', 'deiquat', 'FUdR', 'mechlorethamine', 
+           'nickel', 'paraquat', 'puromycin', 'silver', 'vincristine', 'zinc', 'cisplatin.250', 'cisplatin.500', 'lysate.175', 'OP50', 'DA837', 
+           'JUb68', 'HT115')
 
-	# save dataframe as Rda
-	${params.out} <- df
-	save(${params.out}, file = paste0("${params.out}", ".Rda"))
+    threshold <- "${params.thresh}"
+    cilod <- "${params.ci}"
+
+    for(num in 1:length(drugs)) {
+    	# assign drug
+    	d <- drugs[num]
+
+    	# load all data associated with that drug
+    	files <- grep("chrom", grep(d, list.files(), value = T), value = T)
+    	annotatedmap <- NULL
+    	for(f in files) {
+    		traitdf <- readr::read_tsv(f)
+    		traitdf$ci_l_pos <- as.numeric(traitdf$ci_l_pos)
+			traitdf$ci_r_pos <- as.numeric(traitdf$ci_r_pos)
+			traitdf$pos <- as.numeric(traitdf$pos)
+			traitdf$lod <- as.numeric(traitdf$lod)
+    		annotatedmap <- rbind(annotatedmap, traitdf)
+    	}
+
+    	save(annotatedmap, file = paste0("/projects/b1059/projects/Katie/20180622_alldrugGWERmap/analysis-20180827_allAnnotatedLods/", d, "-", threshold, ".", cilod, ".annotated.Rda"))
+    }
+
+
+    for(num in 1:length(drugs)) {
+    	# assign drug
+    	d <- drugs[num]
+
+    	# load all data associated with that drug
+    	load(grep(d, list.files(), value = T))
+		annotatedmap$ci_l_pos <- as.numeric(annotatedmap$ci_l_pos)
+		annotatedmap$ci_r_pos <- as.numeric(annotatedmap$ci_r_pos)
+		annotatedmap$pos <- as.numeric(annotatedmap$pos)
+		annotatedmap$lod <- as.numeric(annotatedmap$lod)
+		annotatedmap$var_exp <- as.numeric(annotatedmap$var_exp)
+		annotatedmap$eff_size <- as.numeric(annotatedmap$eff_size)
+
+
+    	save(annotatedmap, file = paste0("/projects/b1059/projects/Katie/20180622_alldrugGWERmap/analysis-20180827_allAnnotatedLods/", d, "-", threshold, ".", cilod, ".annotated.Rda"))
+    }
 
 	"""
-
 }
+
+
+// combine the annotated mappings
+// process concatenate_mappings {
+
+//     publishDir "analysis-${params.out}/", mode: 'copy'
+    
+//     input:
+//         val(input_mapping) from annotated_maps.toSortedList()
+
+//     output:
+//         file("${params.out}.tsv") into output
+
+//     """
+//     # use this to only print the header of the first line
+// 	awk 'FNR>1 || NR==1' ${input_mapping.join(" ")} > ${params.out}.tsv
+//     """
+
+// }
+
+// convert to Rda format
+// process convertR {
+
+// 	publishDir "analysis-${params.out}/", mode: 'copy'
+
+// 	input:
+// 		file("mappingfile") from output
+
+// 	output:
+// 		file("${params.out}.Rda")
+
+// 	"""
+// 	#!/usr/bin/env Rscript --vanilla
+// 	library(readr)
+
+// 	# load file
+// 	df <- readr::read_tsv("$mappingfile")
+
+// 	# convert to numerics
+// 	df["var_exp"] <- as.numeric(df["var_exp"][[1]])
+// 	df["eff_size"] <- as.numeric(df["eff_size"][[1]])
+// 	df["ci_l_pos"] <- as.numeric(df["ci_l_pos"][[1]])
+// 	df["ci_r_pos"] <- as.numeric(df["ci_r_pos"][[1]])
+
+// 	# save dataframe as Rda
+// 	${params.out} <- df
+// 	save(${params.out}, file = paste0("${params.out}", ".Rda"))
+
+// 	"""
+
+// }
