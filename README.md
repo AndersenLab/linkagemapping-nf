@@ -38,3 +38,5 @@ For the Andersen Lab, the input file is generally going to be the output from th
 ```
 nextflow run AndersenLab/linkagemapping-nf --in='input.tsv' --ci='proximal' --out='output.tsv'
 ```
+
+Test
