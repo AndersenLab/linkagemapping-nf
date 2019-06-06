@@ -78,7 +78,7 @@ process mapping {
 	if(threshold == "FDR") {
 		phenotype_name <- "${riails}"
 	} else {
-		phenotype_name <- unique(df["condtrt"])[[1]]
+		phenotype_name <- unique(df["trait"])[[1]]
 	}
 	
 
