@@ -164,8 +164,8 @@ process convertR {
 	df["ci_r_pos"] <- as.numeric(df["ci_r_pos"][[1]])
 
 	# save dataframe as Rda
-	${params.out} <- df
-	save(${params.out}, file = paste0("${params.out}", ".Rda"))
+	annotatedmap <- df
+	save(annotatedmap, file = paste0("${params.out}", ".Rda"))
 
 	"""
 
