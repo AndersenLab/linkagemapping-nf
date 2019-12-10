@@ -89,7 +89,8 @@ process mapping {
 	if("${params.cross}" == "N2xCB4856cross_full") {
 		markers <- NA
 	} else {
-		markers <- stringr::str_split_fixed("${params.cross}", "cross", 2)[,1]
+		# markers <- stringr::str_split_fixed("${params.cross}", "cross", 2)[,1]
+		markers <- strsplit("N2xCB4856cross", "cross")[[1]]
 	}
 
 
