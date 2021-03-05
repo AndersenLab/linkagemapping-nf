@@ -24,7 +24,7 @@ threshold <- args[2]
 if(threshold == "FDR") {
 	phenotype_name <- "phenotype"
 } else {
-	phenotype_name <- glue::glue("{df$condition[1]}_{df$trait[1]}")
+	phenotype_name <- glue::glue("{df$condition[1]}.{df$trait[1]}")
 }
 
 

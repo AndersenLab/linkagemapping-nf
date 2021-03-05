@@ -23,4 +23,4 @@ df <- data.frame(full = scan2thousand$full[[1]], fv1 = scan2thousand$fv1[[1]], i
 					trait = names(drugcross$pheno)[3])
 
 # save dataframe
-readr::write_tsv(df, paste0("scan2thousand", "_", args[2], ".tsv"))
+readr::write_tsv(df, paste0(names(drugcross$pheno)[3], "_scan2thousand_", args[2], ".tsv"))
