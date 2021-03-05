@@ -77,7 +77,7 @@ workflow {
 			.groupTuple() // group by trait
 			.collectFile(keepHeader: true, sort: {it[0]}) {it[1]} // collect all the perms by trait and feed into one file
 			.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
-			.join(scanmap).view() | summarize_scan2 // join with scan2.Rda object and feed into summarize
+			.join(scanmap) | summarize_scan2 // join with scan2.Rda object and feed into summarize
 
 
 }
