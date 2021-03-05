@@ -2,23 +2,31 @@
 
 nextflow.preview.dsl=2
 
-// params:
-// [1] riail phenotype dataframe - required (trait is in condition.trait format)
-// [2] cross object - optional. default = marker (because it can be loaded with linkagemapping)
-// [3] GWER/FDR - optional. default = GWER
-// [4] CI 1.5-LOD - optional. default = chromosomal
-// [5] condtrt flag - do I make a new column for condition.trait?
+date = new Date().format( 'yyyyMMdd' )
 
+// Debug parameters
+if(params.debug) {
+	println """
+
+        *** Using debug mode ***
+
+    """
+	params.nperm = 10
+	params.out = "debug-${date}"
+	params.in = "${workflow.projectDir}/test_data/testdf.tsv"
+} else {
+	params.nperm = 1000
+	params.out = "Analysis-${date}"
+}
+
+// rest of the parameters
 riails = params.in.replace(".tsv","")
-params.cross = 'marker'
+params.cross = 'N2xCB4856cross'
 params.thresh = 'GWER'
 params.ci = "chromosomal"
-date = new Date().format( 'yyyyMMdd' )
-params.nperm = 10
 nperms = params.nperm
 params.set = 2
-params.scan = "FALSE"
-params.out = "Analysis-${date}"
+params.scan = false
 
 
 def log_summary() {
@@ -37,16 +45,22 @@ out += """
 
 To run the pipeline:
 
+nextflow main.nf --debug
 nextflow main.nf --in=/path/phenotype.tsv
 
-    parameters                 	description                           	Set/Default
-    ==========                 	===========                           	========================
-    --crossobj					Cross object file name 					${params.cross}
-    --thresh 					Threshold (GWER or FDR)  				${params.thresh}
-    --ci 						Confidence interval method 				${params.ci}
-    --nperm 					Number of permutations 					${params.nperm}
-    --set 						RIAIL set   							${params.set}
-    --scan 						To perform scan2 or not  				${params.scan}
+    parameters                  description                           	Set/Default
+    ==========                  ===========                           	========================
+    --debug                     Use --debug to indicate debug mode      ${params.debug}
+    --in                        Trait file                              ${params.in}
+    --crossobj                  Cross object file name                  ${params.cross}
+    --thresh                    Threshold (GWER or FDR)                 ${params.thresh}
+    --ci                        Confidence interval method              ${params.ci}
+    --nperm                     Number of permutations                  ${params.nperm}
+    --set                       RIAIL set                               ${params.set}
+    --scan                      To perform scan2 or not                 ${params.scan}
+
+    username                                                            ${"whoami".execute().in.text}
+
 
 ---
 """
@@ -57,27 +71,35 @@ log.info(log_summary())
 
 workflow {
 
-	// linkage mapping
-	Channel.fromPath(params.in) | split_pheno
-	split_pheno.out.flatten() | mapping
-	mapping.out.annotated_map.collectFile(keepHeader: true, name: 'annotatedmap.tsv', storeDir: "Analysis-${date}") | convertR
+	if(params.scan == true) {
+		// linkage mapping
+		Channel.fromPath(params.in) | split_pheno
+		split_pheno.out.flatten() | mapping
+		mapping.out.annotated_map.collectFile(keepHeader: true, name: 'annotatedmap.tsv', storeDir: "Analysis-${date}") | convertR
 
-	// Scan2000
-	seeds = Channel
-			.from(1..100000)
-			.randomSample(nperms)
-			.combine(mapping.out.crossobj) | scan2000
+		// Scan2000
+		seeds = Channel
+				.from(1..100000)
+				.randomSample(nperms)
+				.combine(mapping.out.crossobj) | scan2000
 
-	scanmap = mapping.out.scan2_object
-			.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
+		scanmap = mapping.out.scan2_object
+				.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
 
-	// summarize scan2
-	scan2000.out
-			.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
-			.groupTuple() // group by trait
-			.collectFile(keepHeader: true, sort: {it[0]}) {it[1]} // collect all the perms by trait and feed into one file
-			.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
-			.join(scanmap) | summarize_scan2 // join with scan2.Rda object and feed into summarize
+		// summarize scan2
+		scan2000.out
+				.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
+				.groupTuple() // group by trait
+				.collectFile(keepHeader: true, sort: {it[0]}) {it[1]} // collect all the perms by trait and feed into one file
+				.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
+				.join(scanmap) | summarize_scan2 // join with scan2.Rda object and feed into summarize
+	} else {
+		// linkage mapping
+		Channel.fromPath(params.in) | split_pheno
+		split_pheno.out.flatten() | mapping_only
+		mapping_only.out.collectFile(keepHeader: true, name: 'annotatedmap.tsv', storeDir: "Analysis-${date}") | convertR
+	}
+
 
 
 }
@@ -100,6 +122,28 @@ process split_pheno {
 
 
 // Perform the mapping and annotate
+process mapping_only {
+	cpus 4
+	memory '20 GB'
+
+	publishDir "${params.out}/mappings", mode: 'copy', pattern: "*.tsv"
+	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*.Rda"
+	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*.png"
+
+	input:
+		file("input_tsv")
+
+	output:
+		path "*.annotated.tsv"
+
+
+	"""
+	Rscript --vanilla ${workflow.projectDir}/bin/mapping.R ${input_tsv} ${params.thresh} ${params.cross} ${params.set} ${params.nperm} ${params.ci} ${params.scan}
+
+	"""
+}
+
+// Perform the mapping and annotate
 process mapping {
 	cpus 4
 	memory '20 GB'
@@ -116,6 +160,7 @@ process mapping {
 		path "*scan2.Rda", emit: scan2_object
 		path "*mapcross.Rda", emit: crossobj
 		file "*scan2plot.png"
+
 
 	"""
 	Rscript --vanilla ${workflow.projectDir}/bin/mapping.R ${input_tsv} ${params.thresh} ${params.cross} ${params.set} ${params.nperm} ${params.ci} ${params.scan}
@@ -155,9 +200,6 @@ process scan2000 {
 	output:
 		file("*scan2thousand*.tsv")
 
-	//when:
-	//	"${params.scan}" == TRUE
-
 	"""
 	Rscript --vanilla ${workflow.projectDir}/bin/scan_two_thousand.R ${mapcross} ${s}
 	trait=`echo *scan2thousand*.tsv | cut -d '_' -f1`
@@ -176,9 +218,6 @@ process summarize_scan2 {
 
 	output:
 		file("*scan2summary.tsv")
-
-	//when:
-	//	"${params.scan}" == TRUE
 
 
 	"""
