@@ -1,5 +1,5 @@
 # linkagemapping-nf
-test
+
 Perform linkage mapping for one or more traits using nextflow.
 
 ### Requirements
