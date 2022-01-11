@@ -213,6 +213,9 @@ process summarize_scan2 {
 
 	publishDir "${params.out}/scan2", mode: "copy"
 
+	cpus 4
+	memory 16.GB
+
 	input:
 		tuple val("trait"), file("scantwothousand"), file("scan2")
 
