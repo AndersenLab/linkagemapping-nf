@@ -1,5 +1,5 @@
 #!/usr/bin/env nextflow
-
+// test
 nextflow.preview.dsl=2
 
 date = new Date().format( 'yyyyMMdd' )
