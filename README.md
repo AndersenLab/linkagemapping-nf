@@ -37,6 +37,7 @@ For the Andersen Lab, the input file is generally going to be the output from th
 | `--nperm` | 1000 | n | Number of permutations to run for mapping and scan2. Minimum recommended is 100. |
 | `--set` | 2 | 1 | N2xCB4856 RIAIL set to include for mapping. |
 | `--scan` | FALSE | TRUE | Option to run scan2 and permutations for each trait mapped. |
+| `--map` | TRUE | FALSE | Option to not run mapping (only use if scan = TRUE). |
 
 #### Example with options
 ```
