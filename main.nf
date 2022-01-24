@@ -27,6 +27,7 @@ params.ci = "chromosomal"
 nperms = params.nperm
 params.set = 2
 params.scan = false
+params.map = true
 
 
 def log_summary() {
@@ -58,6 +59,7 @@ nextflow main.nf --in=/path/phenotype.tsv
     --nperm                     Number of permutations                  ${params.nperm}
     --set                       RIAIL set                               ${params.set}
     --scan                      To perform scan2 or not                 ${params.scan}
+    --map                       To perform linkage mapping or not       ${params.map}
 
     username                                                            ${"whoami".execute().in.text}
 
@@ -71,12 +73,15 @@ log.info(log_summary())
 
 workflow {
 
-	if(params.scan == true) {
-		// linkage mapping
-		Channel.fromPath(params.in) | split_pheno
-		split_pheno.out.flatten() | mapping
-		mapping.out.annotated_map.collectFile(keepHeader: true, name: 'annotatedmap.tsv', storeDir: "Analysis-${date}") | convertR
+	// linkage mapping
+	Channel.fromPath(params.in) | split_pheno
+	split_pheno.out.flatten() | mapping
 
+	if(params.map == true) {
+		mapping.out.annotated_map.collectFile(keepHeader: true, name: 'annotatedmap.tsv', storeDir: "Analysis-${date}") | convertR
+	}
+
+	if(params.scan == true) {
 		// Scan2000
 		seeds = Channel
 				.from(1..100000)
@@ -93,14 +98,7 @@ workflow {
 				.collectFile(keepHeader: true, sort: {it[0]}) {it[1]} // collect all the perms by trait and feed into one file
 				.map { file -> tuple(file.baseName.split('_')[0], file) } // grab the trait name from file and create tuple/set
 				.join(scanmap) | summarize_scan2 // join with scan2.Rda object and feed into summarize
-	} else {
-		// linkage mapping
-		Channel.fromPath(params.in) | split_pheno
-		split_pheno.out.flatten() | mapping_only
-		mapping_only.out.collectFile(keepHeader: true, name: 'annotatedmap.tsv', storeDir: "Analysis-${date}") | convertR
-	}
-
-
+	 }
 
 }
 
@@ -120,50 +118,30 @@ process split_pheno {
 }
 
 
-
-// Perform the mapping and annotate
-process mapping_only {
-	cpus 4
-	memory '20 GB'
-
-	publishDir "${params.out}/mappings", mode: 'copy', pattern: "*.tsv"
-	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*.Rda"
-	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*.png"
-
-	input:
-		file("input_tsv")
-
-	output:
-		path "*.annotated.tsv"
-
-
-	"""
-	Rscript --vanilla ${workflow.projectDir}/bin/mapping.R ${input_tsv} ${params.thresh} ${params.cross} ${params.set} ${params.nperm} ${params.ci} ${params.scan}
-
-	"""
-}
-
 // Perform the mapping and annotate
 process mapping {
 	cpus 4
 	memory '20 GB'
 
 	publishDir "${params.out}/mappings", mode: 'copy', pattern: "*.tsv"
-	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*.Rda"
-	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*.png"
+	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*scan2.Rda"
+	publishDir "${params.out}/plots", mode: 'copy', pattern: "*.png"
+	publishDir "${params.out}/plots", mode: 'copy', pattern: "*.pdf"
+	publishDir "${params.out}/mappings", mode: 'copy', pattern: "*mapcross.Rda"
 
 	input:
 		file("input_tsv")
 
 	output:
-		path "*.annotated.tsv", emit: annotated_map
-		path "*scan2.Rda", emit: scan2_object
+		path "*.annotated.tsv", emit: annotated_map, optional: true
+		path "*scan2.Rda", emit: scan2_object, optional: true
 		path "*mapcross.Rda", emit: crossobj
-		file "*scan2plot.png"
+		path "*.png", optional: true
+		path "*.pdf", optional: true
 
 
 	"""
-	Rscript --vanilla ${workflow.projectDir}/bin/mapping.R ${input_tsv} ${params.thresh} ${params.cross} ${params.set} ${params.nperm} ${params.ci} ${params.scan}
+	Rscript --vanilla ${workflow.projectDir}/bin/mapping.R ${input_tsv} ${params.thresh} ${params.cross} ${params.set} ${params.nperm} ${params.ci} ${params.scan} ${params.map}
 
 	"""
 }
@@ -231,5 +209,20 @@ process summarize_scan2 {
 
 }
 
+// Make HTML report and plots
 
+// process html_report {
+
+// 	input:
+// 		tuple path("pheno"), path("map")
+
+// 	output:
+// 		file("*")
+	
+// 	"""
+
+
+// 	"""
+
+// }
 

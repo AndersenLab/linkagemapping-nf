@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript --vanilla
-.libPaths(c("/projects/b1059/software/R_lib_3.6.0", .libPaths()))
+# .libPaths(c("/projects/b1059/software/R_lib_3.6.0", .libPaths()))
 library(tidyverse)
 library(qtl)
 library(linkagemapping)

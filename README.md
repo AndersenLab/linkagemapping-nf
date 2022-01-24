@@ -5,11 +5,13 @@ Perform linkage mapping for one or more traits using nextflow.
 ### Requirements
 The linkagemapping-nf pipeline requires installation of several R packages including [linkage mapping]("https://github.com/AndersenLab/linkagemapping"), `qtl` and `tidyverse`. These packages are all available on Quest with no additional work for the user.
 
-This pipeline also requires Nextflow version 20.0+. On Quest, run with:
+This pipeline also requires Nextflow version 20.0+ and Singularity (or docker). On Quest, run with:
 
 ```
 module load python/anaconda3.6
 source activate /projects/b1059/software/conda_envs/nf20_env
+
+module load singularity
 ```
 
 ### Usage
@@ -37,6 +39,7 @@ For the Andersen Lab, the input file is generally going to be the output from th
 | `--nperm` | 1000 | n | Number of permutations to run for mapping and scan2. Minimum recommended is 100. |
 | `--set` | 2 | 1 | N2xCB4856 RIAIL set to include for mapping. |
 | `--scan` | FALSE | TRUE | Option to run scan2 and permutations for each trait mapped. |
+| `--map` | TRUE | FALSE | Option to not run mapping (only use if scan = TRUE). |
 
 #### Example with options
 ```

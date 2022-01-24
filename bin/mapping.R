@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript --vanilla
-.libPaths(c("/projects/b1059/software/R_lib_3.6.0", .libPaths()))
+# .libPaths(c("/projects/b1059/software/R_lib_3.6.0", .libPaths()))
 library(tidyverse)
 library(linkagemapping)
 library(qtl)
@@ -46,7 +46,43 @@ save(drugcross, file = glue::glue("{phenotype_name}-mapcross.Rda"))
 
 
 # perform the mapping
-map <- linkagemapping::fsearch(drugcross, permutations = args[5], thresh = threshold, markerset = markers)
+if(args[8] %in% c("TRUE", "true", TRUE)) {
+  map <- linkagemapping::fsearch(drugcross, permutations = args[5], thresh = threshold, markerset = markers)
+
+  # annotate map
+  cilod <- args[6]
+  
+  # check to make sure there is something to annotate
+  peaks <- map %>%
+    na.omit()
+  if(nrow(peaks) > 0) {
+    annotatedmap <- linkagemapping::annotate_lods(map, drugcross, cutoff = cilod)
+
+    if(args[3] == "N2xCB4856cross_full") {
+        annotatedmap <- annotatedmap %>%
+          dplyr::mutate(pos = as.numeric(stringr::str_split_fixed(marker, "_", 2)[,2]),
+                    ci_l_pos = as.numeric(stringr::str_split_fixed(ci_l_marker, "_", 2)[,2]),
+                    ci_r_pos = as.numeric(stringr::str_split_fixed(ci_r_marker, "_", 2)[,2]))
+    }
+      
+  } else {
+    annotatedmap <- map %>%
+      dplyr::mutate(var_exp = NA, eff_size = NA, ci_l_marker = NA, ci_l_pos = NA, ci_r_marker = NA, ci_r_pos = NA)
+  }
+  
+  # save annotated map
+  readr::write_tsv(annotatedmap, paste0(phenotype_name, "-", threshold, ".", cilod, ".annotated.tsv"))
+  
+  # plot LOD plot
+  lod <- linkagemapping::maxlodplot(annotatedmap)
+  ggsave(lod, filename = paste0(phenotype_name, "-", threshold, ".", cilod, ".lod.png"), width = 8, height = 4)
+  
+  # plot PXG plot
+  pxg <- linkagemapping::pxgplot(drugcross, annotatedmap)
+  ggsave(pxg, filename = paste0(phenotype_name, "-", threshold, ".", cilod, ".pxg.png"))
+  
+  
+}
 
 if(args[7] %in% c("TRUE", "true", TRUE)) {
 	# run scan2
@@ -56,25 +92,7 @@ if(args[7] %in% c("TRUE", "true", TRUE)) {
 	save(scan, file = glue::glue("{phenotype_name}_scan2.Rda"))
 
 	# plot scan2
-	png(glue::glue("{phenotype_name}_scan2plot.png"))
+	pdf(glue::glue("{phenotype_name}_scan2plot.pdf"))
 	plot(scan)
 	dev.off()
 }
-
-
-# annotate map
-cilod <- args[6]
-
-# check to make sure there is something to annotate
-peaks <- map %>%
-	na.omit()
-if(nrow(peaks) > 0) {
-	annotatedmap <- linkagemapping::annotate_lods(map, drugcross, cutoff = cilod)
-} else {
-	annotatedmap <- map %>%
-		dplyr::mutate(var_exp = NA, eff_size = NA, ci_l_marker = NA, ci_l_pos = NA, ci_r_marker = NA, ci_r_pos = NA)
-}
-
-
-# save annotated map
-readr::write_tsv(annotatedmap, paste0(phenotype_name, "-", threshold, ".", cilod, ".annotated.tsv"))

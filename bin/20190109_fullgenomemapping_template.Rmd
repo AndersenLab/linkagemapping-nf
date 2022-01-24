@@ -1,0 +1,37 @@
+## `r i`
+
+```{r, fig.width=12, fig.height = 6}
+
+# lod plot
+linkagedf <- annotatedmap%>%
+    dplyr::filter(trait == paste(d, i, sep = "."))
+maxlodplot <- maxlodplot_kt(linkagedf)
+
+# find parent phenotypes
+if(grepl("PC", i)) {
+    parents <- allRIAILsregressed %>%
+        dplyr::filter(condition == d,
+                  strain %in% c("N2", "CB4856"),
+                  !grepl("red|green|yellow|iqr|f.", trait))
+    
+    # calculate pc object from RIAILs
+    linkage_pca <- calc_pc(allRIAILsPCregressed %>% dplyr::filter(condition == d, !grepl("red|green|yellow|iqr|f.|PC", trait)))
+
+    parentdf <- predict_pc(parents, linkage_pca[[1]]) %>%
+        dplyr::filter(trait == i) %>%
+        dplyr::mutate(phenotype = as.numeric(phenotype))
+    
+ } else {
+    parentdf <- allRIAILsregressed %>%
+        dplyr::filter(condition == d, trait == i, strain %in% c("N2", "CB4856"))
+}
+
+
+# pxg <- pxgplot_kt(drugcross, linkagedf, textsize = 12, titlesize = 14, ylab = i)
+pxg <- pxgplot_par_kt(drugcross, linkagedf, parentdf, textsize = 12, titlesize = 14, ylab = i)
+
+plots <- cowplot::plot_grid(maxlodplot, pxg, ncol = 1, nrow = 2, align = "v")
+
+print(plots)
+
+```
