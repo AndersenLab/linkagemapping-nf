@@ -77,7 +77,7 @@ workflow {
 	Channel.fromPath(params.in) | split_pheno
 	split_pheno.out.flatten() | mapping
 
-	if(params.map) {
+	if(params.map == true) {
 		mapping.out.annotated_map.collectFile(keepHeader: true, name: 'annotatedmap.tsv', storeDir: "Analysis-${date}") | convertR
 	}
 
@@ -126,6 +126,7 @@ process mapping {
 	publishDir "${params.out}/mappings", mode: 'copy', pattern: "*.tsv"
 	publishDir "${params.out}/scan2", mode: 'copy', pattern: "*scan2.Rda"
 	publishDir "${params.out}/plots", mode: 'copy', pattern: "*.png"
+	publishDir "${params.out}/plots", mode: 'copy', pattern: "*.pdf"
 	publishDir "${params.out}/mappings", mode: 'copy', pattern: "*mapcross.Rda"
 
 	input:
@@ -135,11 +136,12 @@ process mapping {
 		path "*.annotated.tsv", emit: annotated_map, optional: true
 		path "*scan2.Rda", emit: scan2_object, optional: true
 		path "*mapcross.Rda", emit: crossobj
-		file "*.png"
+		path "*.png", optional: true
+		path "*.pdf", optional: true
 
 
 	"""
-	Rscript --vanilla ${workflow.projectDir}/bin/mapping.R ${input_tsv} ${params.thresh} ${params.cross} ${params.set} ${params.nperm} ${params.ci} ${params.scan}
+	Rscript --vanilla ${workflow.projectDir}/bin/mapping.R ${input_tsv} ${params.thresh} ${params.cross} ${params.set} ${params.nperm} ${params.ci} ${params.scan} ${params.map}
 
 	"""
 }
